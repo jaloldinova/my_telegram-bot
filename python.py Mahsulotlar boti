@@ -1,0 +1,130 @@
+import asyncio
+from aiogram import Bot, Dispatcher
+from aiogram.types import (
+    Message, CallbackQuery,
+    ReplyKeyboardMarkup, KeyboardButton,
+    InlineKeyboardMarkup, InlineKeyboardButton
+)
+from aiogram.filters import Command
+
+TOKEN = "8564134370:AAG0Ypt8psxEVttOP4CE9OaKB_J0qw-b4vU"
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+
+products = {
+    "phones": [
+        {"name": "iPhone 13", "price": 900},
+        {"name": "Samsung S22", "price": 850},
+    ],
+    "laptops": [
+        {"name": "MacBook Air", "price": 1200},
+        {"name": "HP Pavilion", "price": 800},
+    ],
+    "headphones": [
+        {"name": "AirPods Pro", "price": 250},
+        {"name": "JBL Tune", "price": 120},
+    ],
+    "watches": [
+        {"name": "Apple Watch", "price": 400},
+        {"name": "Mi Band 7", "price": 70},
+    ]
+}
+
+user_cart = {}
+
+
+main_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Mahsulotlar")],
+        [KeyboardButton(text=" Savat"), KeyboardButton(text="ℹ️ Ma'lumot")],
+        [KeyboardButton(text=" Savatni tozalash")]
+    ],
+    resize_keyboard=True
+)
+
+categories = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="📱 Telefonlar", callback_data="phones")],
+    [InlineKeyboardButton(text="💻 Noutbuklar", callback_data="laptops")],
+    [InlineKeyboardButton(text="🎧 Quloqchinlar", callback_data="headphones")],
+    [InlineKeyboardButton(text="⌚ Smart soatlar", callback_data="watches")]
+])
+
+
+@dp.message(Command())
+async def start(message: Message):
+    await message.answer(
+        " Mahsulotlar do‘koniga xush kelibsiz!",
+        reply_markup=main_menu
+    )
+
+@dp.message(lambda m: m.text == " Mahsulotlar")
+async def show_categories(message: Message):
+    await message.answer(" Kategoriyani tanlang:", reply_markup=categories)
+
+@dp.callback_query(lambda c: c.data in products)
+async def show_products(call: CallbackQuery):
+    category = call.data
+
+    for item in products[category]:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="🛒 Savatga qo‘shish",
+                callback_data=f"add|{item['name']}|{item['price']}"
+            )]
+        ])
+        await call.message.answer(
+            f" {item['name']}\n Narxi: {item['price']}$",
+            reply_markup=kb
+        )
+
+    await call.answer()
+
+@dp.callback_query(lambda c: c.data.startswith("add|"))
+async def add_to_cart(call: CallbackQuery):
+    _, name, price = call.data.split("|")
+    user_id = call.from_user.id
+
+    user_cart.setdefault(user_id, [])
+    user_cart[user_id].append((name, int(price)))
+
+    await call.answer(" Savatga qo‘shildi")
+
+@dp.message(lambda m: m.text == " Savat")
+async def show_cart(message: Message):
+    cart = user_cart.get(message.from_user.id, [])
+
+    if not cart:
+        await message.answer(" Savat bo‘sh")
+        return
+
+    text = " Savatingiz:\n\n"
+    total = 0
+
+    for name, price in cart:
+        text += f"• {name} — {price}$\n"
+        total += price
+
+    text += f"\n Umumiy summa: {total}$"
+    await message.answer(text)
+
+@dp.message(lambda m: m.text == " Savatni tozalash")
+async def clear_cart(message: Message):
+    user_cart[message.from_user.id] = []
+    await message.answer(" Savat tozalandi")
+
+@dp.message(lambda m: m.text == "ℹ Ma'lumot")
+async def info(message: Message):
+    await message.answer(
+        "ℹ Bu bot mahsulotlarni ko‘rish va savatga qo‘shish uchun yaratilgan.\n"
+        " Python + aiogram asosida."
+    )
+
+
+async def main():
+    print("Bot ishga tushdi...")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
